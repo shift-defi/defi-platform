@@ -1,0 +1,17 @@
+{
+  "name": "shift-core",
+  "version": "0.0.1",
+  "dependencies": {
+    "@layerzerolabs/contracts": "github:LayerZero-Labs/LayerZero",
+    "@openzeppelin/contracts": "5.0.0",
+    "shift-adapters": "file:../defi-platform-adapters"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^3.0.0",
+    "ethers": "^6.6.7",
+    "hardhat": "^2.19.0",
+    "hardhat-deal": "^3.0.1",
+    "solidity-docgen": "^0.6.0-beta.36",
+    "solhint": "^3.6.2"
+  }
+}
