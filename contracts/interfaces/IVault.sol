@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
 import {IERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
@@ -40,8 +40,16 @@ interface IVault is IERC721Enumerable {
         Status positionStatus
     );
 
-    /// @notice Reverts if trying to exit with 0%
-    error CantExitWithZeroShares();
+    /// @notice Reverts if trying to decrease more balance than there is
+    error InsufficientBalance(
+        uint256 positionId,
+        address token,
+        uint256 balance,
+        uint256 needed
+    );
+
+    /// @notice Reverts if trying to exit with 0% or > 100%
+    error WrongExitPercentage(uint256 percentage);
 
     /// @notice Reverts if position processing in case we can't
     error PositionProcessing();

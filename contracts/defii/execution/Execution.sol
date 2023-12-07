@@ -1,20 +1,25 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {SharedLiquidity} from "./SharedLiquidity.sol";
+import {Logic} from "./Logic.sol";
+import {Constants} from "../../libraries/Constants.sol";
 
-abstract contract Execution is SharedLiquidity {
+abstract contract Execution is SharedLiquidity, Ownable {
     using SafeERC20 for IERC20;
 
     struct ExecutionConstructorParams {
+        address logic;
         address incentiveVault;
         address treasury;
         uint256 fixedFee;
         uint256 performanceFee;
     }
 
+    address public immutable LOGIC;
     address public immutable INCENTIVE_VAULT;
     address public immutable TREASURY;
     uint256 public immutable PERFORMANCE_FEE;
@@ -26,7 +31,6 @@ abstract contract Execution is SharedLiquidity {
 
     error EnterFailed();
     error ExitFailed();
-    error NotImplemented();
     error Killed();
     error NotKilled();
 
@@ -35,30 +39,34 @@ abstract contract Execution is SharedLiquidity {
         _;
     }
 
-    constructor(ExecutionConstructorParams memory params) {
+    constructor(ExecutionConstructorParams memory params) Ownable(msg.sender) {
+        LOGIC = params.logic;
         INCENTIVE_VAULT = params.incentiveVault;
         TREASURY = params.treasury;
-        PERFORMANCE_FEE = params.fixedFee;
-        FIXED_FEE = params.performanceFee;
+        PERFORMANCE_FEE = params.performanceFee;
+        FIXED_FEE = params.fixedFee;
     }
 
     function claimRewards() external {
-        _claimRewardsLogic();
+        _logic(abi.encodeCall(Logic.claimRewards, (INCENTIVE_VAULT)));
     }
 
-    function emergencyExit() external alive {
-        // TODO: add role
-        _emergencyExitLogic();
+    function emergencyExit() external alive onlyOwner {
+        _logic(abi.encodeCall(Logic.emergencyExit, ()));
 
         killed = true;
         emit EmergencyExited();
+    }
+
+    function totalLiquidity() public view override returns (uint256) {
+        return Logic(LOGIC).accountLiquidity(address(this));
     }
 
     function _enter(
         uint256 minLiquidityDelta
     ) internal alive returns (uint256 newShares) {
         uint256 liquidityBefore = totalLiquidity();
-        _enterLogic();
+        _logic(abi.encodeCall(Logic.enter, ()));
         uint256 liquidityAfter = totalLiquidity();
         if (
             liquidityBefore >= liquidityAfter ||
@@ -71,10 +79,28 @@ abstract contract Execution is SharedLiquidity {
         return _sharesFromLiquidityDelta(liquidityBefore, liquidityAfter);
     }
 
-    function _exit(uint256 shares) internal alive {
-        // TODO: check min token out
+    function _exit(
+        uint256 shares,
+        address[] memory tokens,
+        uint256[] memory minDeltas
+    ) internal alive {
+        uint256 n = tokens.length;
+        for (uint256 i = 0; i < n; i++) {
+            minDeltas[i] += IERC20(tokens[i]).balanceOf(address(this));
+        }
+
         uint256 liquidity = _toLiquidity(shares);
-        _exitLogic(liquidity);
+        _logic(abi.encodeCall(Logic.exit, (liquidity)));
+
+        for (uint256 i = 0; i < n; i++) {
+            if (IERC20(tokens[i]).balanceOf(address(this)) < minDeltas[i]) {
+                revert ExitFailed();
+            }
+        }
+    }
+
+    function _withdrawLiquidity(address recipient, uint256 amount) internal {
+        _logic(abi.encodeCall(Logic.withdrawLiquidity, (recipient, amount)));
     }
 
     function _withdrawAfterEmergencyExit(
@@ -96,24 +122,26 @@ abstract contract Execution is SharedLiquidity {
         }
     }
 
-    function _enterLogic() internal virtual;
+    function _logic(bytes memory call) internal returns (bytes memory data) {
+        bool success;
+        (success, data) = LOGIC.delegatecall(call);
 
-    function _exitLogic(uint256 liquidity) internal virtual;
-
-    function _claimRewardsLogic() internal virtual;
-
-    function _emergencyExitLogic() internal virtual {
-        revert NotImplemented();
+        if (!success) {
+            assembly {
+                revert(add(data, 32), mload(data))
+            }
+        }
     }
 
-    function _withdrawLiquidityLogic(
-        address to,
-        uint256 liquidity
-    ) internal virtual;
+    function _calculateFixedFeeAmount(
+        uint256 shares
+    ) internal view returns (uint256 performanceFeeAmount) {
+        return (shares * FIXED_FEE) / Constants.BPS;
+    }
 
     function _calculatePerformanceFeeAmount(
         uint256 shares
     ) internal view returns (uint256 performanceFeeAmount) {
-        return (shares * PERFORMANCE_FEE) / 1e4;
+        return (shares * PERFORMANCE_FEE) / Constants.BPS;
     }
 }

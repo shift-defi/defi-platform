@@ -1,7 +1,11 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
 abstract contract RemoteCalls {
+    enum RemoteCallsType {
+        LZ
+    }
+
     event RemoteCall(bytes calldata_);
 
     error RemoteCallFailed();
@@ -10,6 +14,8 @@ abstract contract RemoteCalls {
         if (msg.sender != address(this)) revert RemoteCallFailed();
         _;
     }
+
+    function remoteCallType() external pure virtual returns (RemoteCallsType);
 
     function _startRemoteCall(
         bytes memory calldata_,

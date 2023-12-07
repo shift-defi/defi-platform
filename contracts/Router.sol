@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
 import {IVault} from "./interfaces/IVault.sol";
@@ -6,8 +6,9 @@ import {IRouter} from "./interfaces/IRouter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
-contract Router is IRouter {
+contract Router is IRouter, ERC721Holder {
     using SafeERC20 for IERC20;
 
     function deposit(

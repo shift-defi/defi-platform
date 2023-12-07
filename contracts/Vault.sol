@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -11,6 +11,7 @@ import {IVault} from "./interfaces/IVault.sol";
 import {IDefii} from "./interfaces/IDefii.sol";
 import {OperatorMixin} from "./OperatorMixin.sol";
 import {Status, Statuses} from "./libraries/StatusLogic.sol";
+import {Constants} from "./libraries/Constants.sol";
 
 contract Vault is ERC721Enumerable, OperatorMixin, IVault {
     using SafeERC20 for IERC20;
@@ -21,7 +22,7 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
     /// @dev Weight should be in bps (eg 100% = 1e4)
     struct DefiiInfo {
         address defii;
-        uint16 weight; // bps
+        uint16 weight;
     }
 
     uint256 constant OPERATOR_POSITION_ID = 0;
@@ -47,10 +48,11 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
     }
 
     constructor(
+        address operatorRegistry,
         DefiiInfo[] memory defiiConfig,
         string memory vaultName,
         string memory vaultSymbol
-    ) ERC721(vaultName, vaultSymbol) {
+    ) ERC721(vaultName, vaultSymbol) OperatorMixin(operatorRegistry) {
         _safeMint(msg.sender, OPERATOR_POSITION_ID);
 
         NUM_DEFIIS = defiiConfig.length;
@@ -119,8 +121,9 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
     /// @param percentage How many shares to exit (in bps)
     /// @dev Can't call when position in processing
     function startExit(uint256 percentage) external {
+        if (percentage > Constants.BPS) revert WrongExitPercentage(percentage);
         uint256 positionId = _getPositionId(msg.sender, false);
-        _validatePostionNotProcessing(positionId);
+        _validatePositionNotProcessing(positionId);
         _exitPercentage[positionId] = percentage;
     }
 
@@ -130,7 +133,7 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
         uint256 amount,
         uint256 positionId
     ) external {
-        if (token == NOTION) _validatePostionNotProcessing(positionId);
+        if (token == NOTION) _validatePositionNotProcessing(positionId);
 
         address positionOwner = ownerOf(positionId);
         _operatorCheckApproval(positionOwner);
@@ -141,14 +144,17 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
     /// @notice Burn DEFII lp and withdraw liquidity from DEFII to user wallet
     /// @param instructions Remote call instruction for remote defii, empty array for local defii
     function withdrawLiquidityFromDefii(
+        uint256 positionId,
         address defii,
         IDefii.Instruction[] calldata instructions
     ) external payable validateDefii(defii) {
-        uint256 positionId = _getPositionId(msg.sender, false);
+        address positionOwner = ownerOf(positionId);
+        _operatorCheckApproval(positionOwner);
+
         uint256 lpAmount = positionBalance[positionId][defii];
         _changeBalance(positionId, defii, lpAmount, false);
 
-        IDefii(defii).withdrawLiquidity(msg.sender, lpAmount, instructions);
+        IDefii(defii).withdrawLiquidity(positionOwner, lpAmount, instructions);
     }
 
     /// @inheritdoc IVault
@@ -191,7 +197,7 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
         operatorCheckApproval(ownerOf(positionId))
     {
         uint256 shares = calculateExitDefiiShares(positionId, defii);
-        if (shares == 0) revert CantExitWithZeroShares();
+        if (shares == 0) revert WrongExitPercentage(0);
 
         _changeDefiiStatus(positionId, defii, Status.EXITING);
         _changeBalance(positionId, defii, shares, false);
@@ -251,7 +257,7 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
         uint256 positionId,
         address defii
     ) public view returns (uint256) {
-        return (_enterAmount[positionId] * defiiWeight[defii]) / 1e4;
+        return (_enterAmount[positionId] * defiiWeight[defii]) / Constants.BPS;
     }
 
     /// @notice Calculate amount of shares for exit for certain DEFII
@@ -266,7 +272,7 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
     ) public view returns (uint256) {
         return
             (_exitPercentage[positionId] * positionBalance[positionId][defii]) /
-            1e4;
+            Constants.BPS;
     }
 
     function _deposit(
@@ -282,7 +288,7 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
         }
 
         if (token == NOTION && !_isDefii(msg.sender)) {
-            _validatePostionNotProcessing(positionId);
+            _validatePositionNotProcessing(positionId);
             _enterAmount[positionId] = positionBalance[positionId][NOTION];
         }
     }
@@ -310,7 +316,13 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
         if (increase) {
             positionBalance[positionId][token] += amount;
         } else {
-            positionBalance[positionId][token] -= amount;
+            uint256 balance = positionBalance[positionId][token];
+            if (balance < amount) {
+                revert InsufficientBalance(positionId, token, balance, amount);
+            }
+            unchecked {
+                positionBalance[positionId][token] = balance - amount;
+            }
         }
 
         emit BalanceChanged(positionId, token, amount, increase);
@@ -348,7 +360,7 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
         return defiiWeight[defii] > 0;
     }
 
-    function _validatePostionNotProcessing(uint256 positionId) internal view {
+    function _validatePositionNotProcessing(uint256 positionId) internal view {
         if (_isPositonProcessing(positionId)) {
             revert PositionProcessing();
         }

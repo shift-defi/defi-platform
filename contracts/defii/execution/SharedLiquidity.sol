@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
 /* solhint-disable named-return-values */
@@ -11,7 +11,6 @@ abstract contract SharedLiquidity {
         uint256 liquidityBefore,
         uint256 liquidityAfter
     ) internal view returns (uint256) {
-        // TODO: think about liquidity inflation
         uint256 totalShares_ = totalShares();
         uint256 liquidityDelta = liquidityAfter - liquidityBefore;
         if (totalShares_ == 0) {

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -9,6 +9,7 @@ import {IRemoteDefiiAgent} from "../interfaces/IRemoteDefiiAgent.sol";
 import {IRemoteDefiiPrincipal} from "../interfaces/IRemoteDefiiPrincipal.sol";
 import {OperatorMixin} from "../OperatorMixin.sol";
 import {ExecutionSimulation} from "./execution/ExecutionSimulation.sol";
+import {Execution} from "./execution/Execution.sol";
 import {RemoteInstructions} from "./instructions/RemoteInstructions.sol";
 import {RemoteCalls} from "./remote-calls/RemoteCalls.sol";
 import {SupportedTokens} from "./supported-tokens/SupportedTokens.sol";
@@ -24,34 +25,33 @@ abstract contract RemoteDefiiAgent is
     using SafeERC20 for IERC20;
 
     uint256 internal _totalShares;
-    mapping(address vault => mapping(uint256 positionId => uint256))
-        public userShares;
 
     event RemoteEnter(address indexed vault, uint256 indexed postionId);
     event RemoteExit(address indexed vault, uint256 indexed postionId);
 
     constructor(
         address swapRouter_,
+        address operatorRegistry,
         uint256 remoteChainId_,
         ExecutionConstructorParams memory executionParams
     )
         RemoteInstructions(swapRouter_, remoteChainId_)
-        ExecutionSimulation(executionParams)
-    {
-        fundsOwner[TREASURY][0] = TREASURY;
-    }
+        Execution(executionParams)
+        OperatorMixin(operatorRegistry)
+    {}
 
     function remoteEnter(
         address vault,
         uint256 positionId,
+        address owner,
         IDefii.Instruction[] calldata instructions
-    ) external payable operatorCheckApproval(fundsOwner[vault][positionId]) {
+    ) external payable operatorCheckApproval(owner) {
         // instructions
         // [SWAP, SWAP, ..., SWAP, MIN_LIQUIDITY_DELTA, REMOTE_CALL]
 
         address[] memory tokens = supportedTokens();
         for (uint256 i = 0; i < tokens.length; i++) {
-            _releaseToken(vault, positionId, tokens[i], 0);
+            _releaseToken(vault, positionId, owner, tokens[i], 0);
         }
 
         uint256 nInstructions = instructions.length;
@@ -66,38 +66,49 @@ abstract contract RemoteDefiiAgent is
         uint256 shares = _enter(
             _decodeMinLiquidityDelta(instructions[nInstructions - 2])
         );
-        _totalShares += shares;
 
+        uint256 fee = _calculateFixedFeeAmount(shares);
+        uint256 userShares = shares - fee;
+
+        _totalShares += shares;
+        positionBalance[address(0)][0][owner][address(this)] += fee;
         _startRemoteCall(
             abi.encodeWithSelector(
                 IRemoteDefiiPrincipal.mintShares.selector,
                 vault,
                 positionId,
-                shares
+                userShares
             ),
             _decodeRemoteCall(instructions[nInstructions - 1])
         );
 
         for (uint256 i = 0; i < tokens.length; i++) {
-            _holdToken(vault, positionId, tokens[i], 0);
+            _holdToken(vault, positionId, owner, tokens[i], 0);
         }
         emit RemoteEnter(vault, positionId);
     }
 
-    function remoteExit(
+    function startRemoteExit(
         address vault,
         uint256 positionId,
-        uint256 shares,
+        address owner,
         IDefii.Instruction[] calldata instructions
-    ) external payable {
-        address owner = fundsOwner[vault][positionId];
-        _operatorCheckApproval(owner);
+    ) external payable operatorCheckApproval(owner) {
+        // instructions
+        // [MIN_TOKENS_DELTA, BRIDGE/SWAP_BRIDGE, BRIDGE/SWAP_BRIDGE, ...]
 
-        _exit(shares);
-        userShares[vault][positionId] -= shares;
+        IDefii.MinTokensDeltaInstruction
+            memory minTokensDelta = _decodeMinTokensDelta(instructions[0]);
+
+        uint256 shares = positionBalance[vault][positionId][owner][
+            address(this)
+        ];
+
+        _exit(shares, minTokensDelta.tokens, minTokensDelta.deltas);
+        positionBalance[vault][positionId][owner][address(this)] = 0;
         _totalShares -= shares;
 
-        for (uint256 i = 0; i < instructions.length; i++) {
+        for (uint256 i = 1; i < instructions.length; i++) {
             if (instructions[i].type_ == IDefii.InstructionType.BRIDGE) {
                 IDefii.BridgeInstruction
                     memory bridgeInstruction = _decodeBridge(instructions[i]);
@@ -117,7 +128,7 @@ abstract contract RemoteDefiiAgent is
 
         address[] memory tokens = supportedTokens();
         for (uint256 i = 0; i < tokens.length; i++) {
-            _holdToken(vault, positionId, tokens[i], 0);
+            _holdToken(vault, positionId, owner, tokens[i], 0);
         }
         emit RemoteExit(vault, positionId);
     }
@@ -136,6 +147,7 @@ abstract contract RemoteDefiiAgent is
                 address(this),
                 instruction.amountIn
             );
+            _checkToken(instruction.tokenIn);
             _checkToken(instruction.tokenOut);
             _doSwap(instruction);
         }
@@ -143,10 +155,10 @@ abstract contract RemoteDefiiAgent is
         uint256 shares = _enter(
             _decodeMinLiquidityDelta(instructions[nInstructions - 1])
         );
-        uint256 feeAmount = _calculatePerformanceFeeAmount(shares);
+        uint256 fee = _calculatePerformanceFeeAmount(shares);
 
-        userShares[TREASURY][0] += feeAmount;
-        _totalShares += feeAmount;
+        positionBalance[address(0)][0][TREASURY][address(this)] += shares;
+        _totalShares += fee;
 
         address[] memory tokens = supportedTokens();
         for (uint256 i = 0; i < tokens.length; i++) {
@@ -157,31 +169,35 @@ abstract contract RemoteDefiiAgent is
         }
     }
 
-    function increaseUserShares(
+    function increaseShareBalance(
         address vault,
         uint256 positionId,
+        address owner,
         uint256 shares
     ) external remoteFn {
-        userShares[vault][positionId] += shares;
+        positionBalance[vault][positionId][owner][address(this)] += shares;
     }
 
     function withdrawLiquidity(address to, uint256 shares) external remoteFn {
         uint256 liquidity = _toLiquidity(shares);
         _totalShares -= shares;
 
-        _withdrawLiquidityLogic(to, liquidity);
+        _withdrawLiquidity(to, liquidity);
     }
 
     function withdrawFundsAfterEmergencyExit(
         address vault,
-        uint256 positionId
+        uint256 positionId,
+        address owner
     ) external {
-        uint256 shares = userShares[vault][positionId];
+        uint256 shares = positionBalance[vault][positionId][owner][
+            address(this)
+        ];
         uint256 totalShares_ = totalShares();
-        userShares[vault][positionId] -= shares;
+        positionBalance[vault][positionId][owner][address(this)] = 0;
 
         _withdrawAfterEmergencyExit(
-            fundsOwner[vault][positionId],
+            owner,
             shares,
             totalShares_,
             supportedTokens()

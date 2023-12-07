@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -8,6 +8,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IDefii} from "../interfaces/IDefii.sol";
 import {IVault} from "../interfaces/IVault.sol";
 import {ExecutionSimulation} from "./execution/ExecutionSimulation.sol";
+import {Execution} from "./execution/Execution.sol";
 import {LocalInstructions} from "./instructions/LocalInstructions.sol";
 import {Notion} from "./supported-tokens/Notion.sol";
 import {SupportedTokens} from "./supported-tokens/SupportedTokens.sol";
@@ -31,7 +32,7 @@ abstract contract LocalDefii is
         LocalInstructions(swapRouter_)
         Notion(notion_)
         ERC20(name, "DLP")
-        ExecutionSimulation(executionParams)
+        Execution(executionParams)
     {}
 
     /// @inheritdoc IDefii
@@ -51,39 +52,45 @@ abstract contract LocalDefii is
             _doSwap(instruction);
         }
         uint256 shares = _enter(_decodeMinLiquidityDelta(instructions[n - 1]));
-        _mint(msg.sender, shares);
-        IVault(msg.sender).enterCallback(positionId, shares);
+        uint256 fee = _calculateFixedFeeAmount(shares);
+        uint256 userShares = shares - fee;
+
+        _mint(TREASURY, fee);
+        _mint(msg.sender, userShares);
 
         address[] memory tokens = supportedTokens();
         for (uint256 i = 0; i < tokens.length; i++) {
             _returnAllFunds(msg.sender, positionId, tokens[i]);
         }
         _returnAllFunds(msg.sender, positionId, NOTION);
+        IVault(msg.sender).enterCallback(positionId, userShares);
     }
 
     /// @inheritdoc IDefii
-    /// @dev Instructions must be array [SWAP, SWAP, ..., SWAP]
+    /// @dev Instructions must be array [MIN_TOKENS_DELTA, SWAP, SWAP, ..., SWAP]
     function exit(
         uint256 shares,
         uint256 positionId,
         Instruction[] calldata instructions
     ) external payable {
-        _exit(shares);
+        IDefii.MinTokensDeltaInstruction
+            memory minTokensDelta = _decodeMinTokensDelta(instructions[0]);
+        _exit(shares, minTokensDelta.tokens, minTokensDelta.deltas);
         _burn(msg.sender, shares);
 
-        uint256 notionAmount = 0;
-        for (uint256 i = 0; i < instructions.length; i++) {
+        for (uint256 i = 1; i < instructions.length; i++) {
             SwapInstruction memory instruction = _decodeSwap(instructions[i]);
             _checkToken(instruction.tokenIn);
             _checkNotion(instruction.tokenOut);
-            notionAmount += _doSwap(instruction);
+            _doSwap(instruction);
         }
-        _returnFunds(msg.sender, positionId, NOTION, notionAmount);
 
         address[] memory tokens = supportedTokens();
         for (uint256 i = 0; i < tokens.length; i++) {
             _returnAllFunds(msg.sender, positionId, tokens[i]);
         }
+        _returnAllFunds(msg.sender, positionId, NOTION);
+
         IVault(msg.sender).exitCallback(positionId);
     }
 
@@ -97,6 +104,7 @@ abstract contract LocalDefii is
                 address(this),
                 instruction.amountIn
             );
+            _checkNotion(instruction.tokenIn);
             _checkToken(instruction.tokenOut);
             _doSwap(instruction);
         }
@@ -123,7 +131,7 @@ abstract contract LocalDefii is
     ) external payable {
         uint256 liquidity = _toLiquidity(shares);
         _burn(msg.sender, shares);
-        _withdrawLiquidityLogic(recipient, liquidity);
+        _withdrawLiquidity(recipient, liquidity);
     }
 
     function withdrawFundsAfterEmergencyExit(address recipient) external {
@@ -143,6 +151,12 @@ abstract contract LocalDefii is
     // solhint-disable-next-line named-return-values
     function notion() external view returns (address) {
         return NOTION;
+    }
+
+    /// @inheritdoc IDefii
+    // solhint-disable-next-line named-return-values
+    function defiiType() external pure returns (Type) {
+        return Type.LOCAL;
     }
 
     // solhint-disable-next-line named-return-values

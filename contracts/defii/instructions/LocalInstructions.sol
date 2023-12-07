@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -109,5 +109,15 @@ contract LocalInstructions {
             IDefii.InstructionType.MIN_LIQUIDITY_DELTA
         );
         return abi.decode(instruction.data, (uint256));
+    }
+
+    function _decodeMinTokensDelta(
+        IDefii.Instruction memory instruction
+    ) internal pure returns (IDefii.MinTokensDeltaInstruction memory) {
+        _checkInstructionType(
+            instruction,
+            IDefii.InstructionType.MIN_TOKENS_DELTA
+        );
+        return abi.decode(instruction.data, (IDefii.MinTokensDeltaInstruction));
     }
 }

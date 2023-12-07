@@ -5,10 +5,11 @@ import { generateVerifyCommand } from "./utils";
 type VaultParams = {
     vaultName: string;
     vaultSymbol: string;
+    operatorRegistry: string;
     defiiConfig: { defii: string, weight: number }[];
 }
 
-task("Vault:deploy", "Deploy Vault to chain")
+task("deploy:Vault", "Deploy Vault to chain")
     .addParam("paramsPath", "Vault deployment params (path to json)")
     .setAction(async (taskArgs, hre) => {
         const chainId = hre.network.config.chainId;
@@ -50,6 +51,7 @@ task("Vault:deploy", "Deploy Vault to chain")
 
         const ContractFactory = await hre.ethers.getContractFactory("Vault");
         const contract = await ContractFactory.deploy(
+            params.operatorRegistry,
             params.defiiConfig,
             params.vaultName,
             params.vaultSymbol,
@@ -62,6 +64,7 @@ task("Vault:deploy", "Deploy Vault to chain")
             hre.network.name,
             contractAddress,
             [
+                params.operatorRegistry,
                 params.defiiConfig,
                 params.vaultName,
                 params.vaultSymbol

@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IBridgeAdapter} from "shift-adapters/contracts/bridge/IBridgeAdapter.sol";
-import {ITokenWithMessageReceiver} from "shift-adapters/contracts/bridge/ITokenWithMessageReceiver.sol";
+import {IBridgeAdapter} from "@shift-defi/adapters/contracts/bridge/IBridgeAdapter.sol";
+import {ITokenWithMessageReceiver} from "@shift-defi/adapters/contracts/bridge/ITokenWithMessageReceiver.sol";
 
 import {IDefii} from "../../interfaces/IDefii.sol";
 import {LocalInstructions} from "./LocalInstructions.sol";
@@ -16,10 +16,8 @@ contract RemoteInstructions is LocalInstructions, ITokenWithMessageReceiver {
     uint256 public immutable REMOTE_CHAIN_ID;
     FundsHolder public immutable FUNDS_HOLDER;
 
-    mapping(address vault => mapping(uint256 positionId => address fundsOwner))
-        public fundsOwner;
-    mapping(address vault => mapping(uint256 positionId => mapping(address token => uint256 balance)))
-        private _funds;
+    mapping(address vault => mapping(uint256 positionId => mapping(address owner => mapping(address token => uint256 balance))))
+        public positionBalance;
 
     event Bridge(
         address token,
@@ -42,19 +40,17 @@ contract RemoteInstructions is LocalInstructions, ITokenWithMessageReceiver {
         uint256 amount,
         bytes calldata message
     ) external {
-        //TODO: everyone can rewrite owner rigth now
         (address vault, uint256 positionId, address owner) = abi.decode(
             message,
             (address, uint256, address)
         );
 
-        fundsOwner[vault][positionId] = owner;
         IERC20(token).safeTransferFrom(
             msg.sender,
             address(FUNDS_HOLDER),
             amount
         );
-        _funds[vault][positionId][token] += amount;
+        positionBalance[vault][positionId][owner][token] += amount;
     }
 
     function withdrawFunds(
@@ -63,25 +59,23 @@ contract RemoteInstructions is LocalInstructions, ITokenWithMessageReceiver {
         address token,
         uint256 amount
     ) external {
-        address owner = fundsOwner[vault][positionId];
-        require(msg.sender == owner);
-
-        _funds[vault][positionId][token] -= amount;
-        FUNDS_HOLDER.transferTokenTo(token, amount, owner);
+        positionBalance[vault][positionId][msg.sender][token] -= amount;
+        FUNDS_HOLDER.transferTokenTo(token, amount, msg.sender);
     }
 
     function _releaseToken(
         address vault,
         uint256 positionId,
+        address owner,
         address token,
         uint256 amount
     ) internal {
         if (amount == 0) {
-            amount = _funds[vault][positionId][token];
+            amount = positionBalance[vault][positionId][owner][token];
         }
 
         if (amount > 0) {
-            _funds[vault][positionId][token] -= amount;
+            positionBalance[vault][positionId][owner][token] -= amount;
             FUNDS_HOLDER.transferTokenTo(token, amount, address(this));
         }
     }
@@ -89,6 +83,7 @@ contract RemoteInstructions is LocalInstructions, ITokenWithMessageReceiver {
     function _holdToken(
         address vault,
         uint256 positionId,
+        address owner,
         address token,
         uint256 amount
     ) internal {
@@ -97,7 +92,7 @@ contract RemoteInstructions is LocalInstructions, ITokenWithMessageReceiver {
         }
         if (amount > 0) {
             IERC20(token).safeTransfer(address(FUNDS_HOLDER), amount);
-            _funds[vault][positionId][token] += amount;
+            positionBalance[vault][positionId][owner][token] += amount;
         }
     }
 

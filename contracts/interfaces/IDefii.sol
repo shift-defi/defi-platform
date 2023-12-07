@@ -1,17 +1,25 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IDefii is IERC20 {
     /// @notice Instruction type
-    /// @dev SWAP_BRIDGE is combination of SWAP + BRIDGE instructions. Data for MIN_LIQUIDITY_DELTA type is just `uint256`
+    /// @dev SWAP_BRIDGE is combination of SWAP + BRIDGE instructions.
+    /// @dev Data for MIN_LIQUIDITY_DELTA type is just `uint256`
     enum InstructionType {
         SWAP,
         BRIDGE,
         SWAP_BRIDGE,
         REMOTE_CALL,
-        MIN_LIQUIDITY_DELTA
+        MIN_LIQUIDITY_DELTA,
+        MIN_TOKENS_DELTA
+    }
+
+    /// @notice DEFII type
+    enum Type {
+        LOCAL,
+        REMOTE
     }
 
     /// @notice DEFII instruction
@@ -56,6 +64,11 @@ interface IDefii is IERC20 {
         uint256 slippage;
     }
 
+    struct MinTokensDeltaInstruction {
+        address[] tokens;
+        uint256[] deltas;
+    }
+
     /// @notice Enters DEFII with predefined logic
     /// @param amount Notion amount for enter
     /// @param positionId Position id (used in callback)
@@ -93,4 +106,9 @@ interface IDefii is IERC20 {
     /// @return notion address
     // solhint-disable-next-line named-return-values
     function notion() external view returns (address);
+
+    /// @notice DEFII type
+    /// @return type Type
+    // solhint-disable-next-line named-return-values
+    function defiiType() external pure returns (Type);
 }

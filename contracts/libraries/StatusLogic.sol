@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
 import {IVault} from "../interfaces/IVault.sol";
@@ -90,23 +90,10 @@ library StatusLogic {
 
             // prettier-ignore
             if ((
-                positionStatus == Status.ENTERING &&
-                currentStatus == Status.NOT_PROCESSING &&
-                newStatus == Status.ENTERING
-            ) || (
-                positionStatus == Status.ENTERING &&
-                currentStatus == Status.ENTERING &&
-                newStatus == Status.PROCESSED
-            ) || (
-                positionStatus == Status.EXITING &&
-                currentStatus == Status.NOT_PROCESSING &&
-                newStatus == Status.EXITING
-            ) || (
-                positionStatus == Status.EXITING &&
-                currentStatus == Status.EXITING &&
-                newStatus == Status.PROCESSED
-            )
-            ) {
+        positionStatus == Status.ENTERING && currentStatus == Status.NOT_PROCESSING && newStatus == Status.ENTERING)
+        || (positionStatus == Status.ENTERING && currentStatus == Status.ENTERING && newStatus == Status.PROCESSED)
+        || (positionStatus == Status.EXITING && currentStatus == Status.NOT_PROCESSING && newStatus == Status.EXITING)
+        || (positionStatus == Status.EXITING && currentStatus == Status.EXITING && newStatus == Status.PROCESSED)) {
                 statuses = statuses.setDefiiStatus(defiiIndex, newStatus);
                 if (statuses.isAllDefiisProcessed(numDefiis)) {
                     return Statuses.wrap(0);

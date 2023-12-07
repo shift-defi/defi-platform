@@ -1,40 +1,32 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
-import {OperatorLogic} from "./libraries/OperatorLogic.sol";
+import {IOperatorRegistry} from "./interfaces/IOperatorRegistry.sol";
 
 contract OperatorMixin {
-    // TODO: rewrite to one contract for all other contracts
+    IOperatorRegistry public immutable OPERATOR_REGISTRY;
 
-    using OperatorLogic for OperatorLogic.Data;
-
-    OperatorLogic.Data private operatorData;
+    error OperatorNotUnauthorized(address user, address operator);
 
     modifier operatorCheckApproval(address user) {
         _operatorCheckApproval(user);
         _;
     }
 
-    function operatorSetApproval(address operator, bool approval) external {
-        operatorData.setApproval(msg.sender, operator, approval);
-    }
-
-    function operatorSetApprovalWithPermit(
-        address user,
-        address operator,
-        bool approval,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external {
-        // solhint-disable-next-line func-named-parameters
-        operatorData.checkApprovalSignature(user, operator, approval, v, r, s);
-        operatorData.setApproval(msg.sender, operator, approval);
+    constructor(address operatorRegistry) {
+        OPERATOR_REGISTRY = IOperatorRegistry(operatorRegistry);
     }
 
     function _operatorCheckApproval(address user) internal view {
-        if (user != msg.sender) {
-            operatorData.checkApproval(user, msg.sender);
+        if (
+            user != msg.sender &&
+            !OPERATOR_REGISTRY.isOperatorApprovedForAddress(
+                user,
+                msg.sender,
+                address(this)
+            )
+        ) {
+            revert OperatorNotUnauthorized(user, msg.sender);
         }
     }
 }

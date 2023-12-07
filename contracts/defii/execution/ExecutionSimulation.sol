@@ -1,12 +1,11 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Execution} from "./Execution.sol";
+import {Logic} from "./Logic.sol";
 
 abstract contract ExecutionSimulation is Execution {
-    constructor(ExecutionConstructorParams memory params) Execution(params) {}
-
     function simulateExit(
         uint256 shares,
         address[] calldata tokens
@@ -29,7 +28,7 @@ abstract contract ExecutionSimulation is Execution {
             );
         }
 
-        _exitLogic(_toLiquidity(shares));
+        _logic(abi.encodeCall(Logic.exit, (_toLiquidity(shares))));
 
         for (uint256 i = 0; i < tokens.length; i++) {
             balanceChanges[i] =
@@ -65,7 +64,7 @@ abstract contract ExecutionSimulation is Execution {
             );
         }
 
-        _claimRewardsLogic();
+        _logic(abi.encodeCall(Logic.claimRewards, (INCENTIVE_VAULT)));
 
         for (uint256 i = 0; i < rewardTokens.length; i++) {
             balanceChanges[i] =

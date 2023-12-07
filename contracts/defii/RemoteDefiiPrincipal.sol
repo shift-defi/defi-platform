@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -29,11 +29,13 @@ abstract contract RemoteDefiiPrincipal is
 
     constructor(
         address swapRouter_,
+        address operatorRegistry,
         uint256 remoteChainId_,
         address notion_,
         string memory name
     )
         Notion(notion_)
+        OperatorMixin(operatorRegistry)
         RemoteInstructions(swapRouter_, remoteChainId_)
         ERC20(name, "DLP")
     {}
@@ -74,9 +76,10 @@ abstract contract RemoteDefiiPrincipal is
 
         _startRemoteCall(
             abi.encodeWithSelector(
-                IRemoteDefiiAgent.increaseUserShares.selector,
+                IRemoteDefiiAgent.increaseShareBalance.selector,
                 msg.sender,
                 positionId,
+                IVault(msg.sender).ownerOf(positionId),
                 shares
             ),
             _decodeRemoteCall(instructions[0])
@@ -92,15 +95,15 @@ abstract contract RemoteDefiiPrincipal is
         IVault(vault).enterCallback(positionId, shares);
     }
 
-    function remoteExit(
+    function finishRemoteExit(
         address vault,
         uint256 positionId,
+        address owner,
         IDefii.Instruction[] calldata instructions
-    ) external payable operatorCheckApproval(fundsOwner[vault][positionId]) {
+    ) external payable operatorCheckApproval(owner) {
         // instructions
         // [SWAP, SWAP, ..., SWAP]
         uint256 nInstructions = instructions.length;
-        uint256 notionAmount = 0;
         for (uint256 i = 0; i < nInstructions; i++) {
             IDefii.SwapInstruction memory instruction = _decodeSwap(
                 instructions[i]
@@ -110,12 +113,13 @@ abstract contract RemoteDefiiPrincipal is
             _releaseToken(
                 vault,
                 positionId,
+                owner,
                 instruction.tokenIn,
                 instruction.amountIn
             );
-            notionAmount += _doSwap(instruction);
+            _doSwap(instruction);
         }
-        _returnFunds(vault, positionId, NOTION, notionAmount);
+        _returnAllFunds(vault, positionId, NOTION);
         IVault(vault).exitCallback(positionId);
     }
 
@@ -139,5 +143,11 @@ abstract contract RemoteDefiiPrincipal is
     // solhint-disable-next-line named-return-values
     function notion() external view returns (address) {
         return NOTION;
+    }
+
+    /// @inheritdoc IDefii
+    // solhint-disable-next-line named-return-values
+    function defiiType() external pure returns (Type) {
+        return Type.REMOTE;
     }
 }

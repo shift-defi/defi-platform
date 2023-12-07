@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
 import {RemoteCalls} from "./RemoteCalls.sol";
@@ -6,12 +6,19 @@ import {ILayerZeroEndpoint} from "@layerzerolabs/contracts/contracts/interfaces/
 import {ILayerZeroReceiver} from "@layerzerolabs/contracts/contracts/interfaces/ILayerZeroReceiver.sol";
 
 contract RemoteCallsLZ is ILayerZeroReceiver, RemoteCalls {
+    // version + value - https://layerzero.gitbook.io/docs/evm-guides/advanced/relayer-adapter-parameters
+    uint256 constant MIN_ADAPTER_PARAMS_LENGTH = 34;
+
     ILayerZeroEndpoint immutable LZ_ENDPOINT;
     uint16 immutable LZ_REMOTE_CHAIN_ID;
+    uint256 immutable MIN_DST_GAS;
 
-    constructor(address lzEndpoint_, uint16 lzRemoteChainId_) {
-        LZ_ENDPOINT = ILayerZeroEndpoint(lzEndpoint_);
-        LZ_REMOTE_CHAIN_ID = lzRemoteChainId_;
+    error InvalidAdapterParams();
+
+    constructor(address lzEndpoint, uint16 lzRemoteChainId, uint256 minDstGas) {
+        LZ_ENDPOINT = ILayerZeroEndpoint(lzEndpoint);
+        LZ_REMOTE_CHAIN_ID = lzRemoteChainId;
+        MIN_DST_GAS = minDstGas;
     }
 
     function lzReceive(
@@ -44,15 +51,30 @@ contract RemoteCallsLZ is ILayerZeroReceiver, RemoteCalls {
         });
     }
 
+    function remoteCallType() external pure override returns (RemoteCallsType) {
+        return RemoteCallsType.LZ;
+    }
+
     function _remoteCall(
         bytes memory calldata_,
         bytes calldata bridgeParams
     ) internal override {
-        // TODO: check dst gas
         (address lzPaymentAddress, bytes memory lzAdapterParams) = abi.decode(
             bridgeParams,
             (address, bytes)
         );
+
+        if (lzAdapterParams.length < MIN_ADAPTER_PARAMS_LENGTH) {
+            revert InvalidAdapterParams();
+        } else {
+            uint256 gasLimit;
+            assembly {
+                gasLimit := mload(
+                    add(lzAdapterParams, MIN_ADAPTER_PARAMS_LENGTH)
+                )
+            }
+            if (gasLimit < MIN_DST_GAS) revert InvalidAdapterParams();
+        }
 
         // solhint-disable-next-line check-send-result
         ILayerZeroEndpoint(LZ_ENDPOINT).send{value: msg.value}({

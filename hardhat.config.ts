@@ -32,10 +32,16 @@ const config: HardhatUserConfig = {
       url: vars.get("ARBITRUM_RPC"),
       accounts
     },
+    optimisticEthereum: {
+      chainId: 10,
+      url: vars.get("OP_RPC"),
+      accounts
+    },
   },
   etherscan: {
     apiKey: {
       arbitrumOne: vars.get("ARBISCAN_API_KEY"),
+      optimisticEthereum: vars.get("OPTIMISTIC_ETHERSCAN_API_KEY"),
     }
   },
   docgen: {
