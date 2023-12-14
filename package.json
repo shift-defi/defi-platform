@@ -1,6 +1,6 @@
 {
   "name": "@shift-defi/core",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "dependencies": {
     "@layerzerolabs/contracts": "github:LayerZero-Labs/LayerZero",
     "@openzeppelin/contracts": "5.0.0",
