@@ -133,12 +133,15 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
         uint256 amount,
         uint256 positionId
     ) external {
-        if (token == NOTION) _validatePositionNotProcessing(positionId);
-
         address positionOwner = ownerOf(positionId);
         _operatorCheckApproval(positionOwner);
-        _changeBalance(positionId, token, amount, false);
+        _decreaseBalance(positionId, token, amount);
         IERC20(token).safeTransfer(positionOwner, amount);
+
+        if (token == NOTION) {
+            _validatePositionNotProcessing(positionId);
+            _enterAmount[positionId] = positionBalance[positionId][NOTION];
+        }
     }
 
     /// @notice Burn DEFII lp and withdraw liquidity from DEFII to user wallet
@@ -152,7 +155,7 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
         _operatorCheckApproval(positionOwner);
 
         uint256 lpAmount = positionBalance[positionId][defii];
-        _changeBalance(positionId, defii, lpAmount, false);
+        _decreaseBalance(positionId, defii, lpAmount);
 
         IDefii(defii).withdrawLiquidity(positionOwner, lpAmount, instructions);
     }
@@ -171,7 +174,7 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
         _changeDefiiStatus(positionId, defii, Status.ENTERING);
 
         uint256 amount = calculateEnterDefiiAmount(positionId, defii);
-        _changeBalance(positionId, NOTION, amount, false);
+        _decreaseBalance(positionId, NOTION, amount);
         IERC20(NOTION).safeIncreaseAllowance(defii, amount);
         IDefii(defii).enter{value: msg.value}(amount, positionId, instructions);
     }
@@ -181,7 +184,7 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
         uint256 positionId,
         uint256 shares
     ) external validateDefii(msg.sender) {
-        _changeBalance(positionId, msg.sender, shares, true);
+        _increaseBalance(positionId, msg.sender, shares);
         _changeDefiiStatus(positionId, msg.sender, Status.PROCESSED);
     }
 
@@ -200,7 +203,7 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
         if (shares == 0) revert WrongExitPercentage(0);
 
         _changeDefiiStatus(positionId, defii, Status.EXITING);
-        _changeBalance(positionId, defii, shares, false);
+        _decreaseBalance(positionId, defii, shares);
         IDefii(defii).exit{value: msg.value}(shares, positionId, instructions);
     }
 
@@ -282,7 +285,7 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
         uint256 operatorFeeAmount
     ) internal {
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
-        _changeBalance(positionId, token, amount, true);
+        _increaseBalance(positionId, token, amount);
         if (operatorFeeAmount > 0) {
             _payOperatorFee(positionId, token, operatorFeeAmount);
         }
@@ -305,27 +308,30 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
         }
     }
 
-    function _changeBalance(
+    function _increaseBalance(
         uint256 positionId,
         address token,
-        uint256 amount,
-        bool increase
+        uint256 amount
     ) internal {
         if (amount == 0) return;
+        positionBalance[positionId][token] += amount;
+        emit BalanceChanged(positionId, token, amount, true);
+    }
 
-        if (increase) {
-            positionBalance[positionId][token] += amount;
-        } else {
-            uint256 balance = positionBalance[positionId][token];
-            if (balance < amount) {
-                revert InsufficientBalance(positionId, token, balance, amount);
-            }
-            unchecked {
-                positionBalance[positionId][token] = balance - amount;
-            }
+    function _decreaseBalance(
+        uint256 positionId,
+        address token,
+        uint256 amount
+    ) internal {
+        if (amount == 0) return;
+        uint256 balance = positionBalance[positionId][token];
+        if (balance < amount) {
+            revert InsufficientBalance(positionId, token, balance, amount);
         }
-
-        emit BalanceChanged(positionId, token, amount, increase);
+        unchecked {
+            positionBalance[positionId][token] = balance - amount;
+        }
+        emit BalanceChanged(positionId, token, amount, false);
     }
 
     function _changeDefiiStatus(
@@ -345,8 +351,8 @@ contract Vault is ERC721Enumerable, OperatorMixin, IVault {
         address token,
         uint256 operatorFeeAmount
     ) internal {
-        _changeBalance(positionId, token, operatorFeeAmount, false);
-        _changeBalance(OPERATOR_POSITION_ID, token, operatorFeeAmount, true);
+        _decreaseBalance(positionId, token, operatorFeeAmount);
+        _increaseBalance(OPERATOR_POSITION_ID, token, operatorFeeAmount);
     }
 
     function _validateDefii(address defii) internal view {

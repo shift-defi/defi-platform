@@ -26,8 +26,8 @@ abstract contract RemoteDefiiAgent is
 
     uint256 internal _totalShares;
 
-    event RemoteEnter(address indexed vault, uint256 indexed postionId);
-    event RemoteExit(address indexed vault, uint256 indexed postionId);
+    event RemoteEnter(address indexed vault, uint256 indexed positionId);
+    event RemoteExit(address indexed vault, uint256 indexed positionId);
 
     constructor(
         address swapRouter_,
@@ -71,7 +71,7 @@ abstract contract RemoteDefiiAgent is
         uint256 userShares = shares - fee;
 
         _totalShares += shares;
-        positionBalance[address(0)][0][owner][address(this)] += fee;
+        positionBalance[address(0)][0][TREASURY][address(this)] += fee;
         _startRemoteCall(
             abi.encodeWithSelector(
                 IRemoteDefiiPrincipal.mintShares.selector,
@@ -157,14 +157,14 @@ abstract contract RemoteDefiiAgent is
         );
         uint256 fee = _calculatePerformanceFeeAmount(shares);
 
-        positionBalance[address(0)][0][TREASURY][address(this)] += shares;
+        positionBalance[address(0)][0][TREASURY][address(this)] += fee;
         _totalShares += fee;
 
         address[] memory tokens = supportedTokens();
         for (uint256 i = 0; i < tokens.length; i++) {
             uint256 tokenBalance = IERC20(tokens[i]).balanceOf(address(this));
             if (tokenBalance > 0) {
-                IERC20(tokens[i]).transfer(msg.sender, tokenBalance);
+                IERC20(tokens[i]).safeTransfer(msg.sender, tokenBalance);
             }
         }
     }
@@ -178,11 +178,15 @@ abstract contract RemoteDefiiAgent is
         positionBalance[vault][positionId][owner][address(this)] += shares;
     }
 
-    function withdrawLiquidity(address to, uint256 shares) external remoteFn {
+    function remoteWithdrawLiquidity() external {
+        uint256 shares = positionBalance[address(0)][0][msg.sender][
+            address(this)
+        ];
         uint256 liquidity = _toLiquidity(shares);
+        positionBalance[address(0)][0][msg.sender][address(this)] = 0;
         _totalShares -= shares;
 
-        _withdrawLiquidity(to, liquidity);
+        _withdrawLiquidity(msg.sender, liquidity);
     }
 
     function withdrawFundsAfterEmergencyExit(
@@ -194,7 +198,10 @@ abstract contract RemoteDefiiAgent is
             address(this)
         ];
         uint256 totalShares_ = totalShares();
+
+        // burn
         positionBalance[vault][positionId][owner][address(this)] = 0;
+        _totalShares -= shares;
 
         _withdrawAfterEmergencyExit(
             owner,

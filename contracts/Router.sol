@@ -11,12 +11,17 @@ import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Hol
 contract Router is IRouter, ERC721Holder {
     using SafeERC20 for IERC20;
 
+    address immutable swapRouter;
+
+    constructor(address swapRouter_) {
+        swapRouter = swapRouter_;
+    }
+
     function deposit(
         address vault,
         address token,
         uint256 amount,
         uint256 operatorFee,
-        address swapRouter,
         bytes calldata swapCalldata
     ) public returns (uint256 positionId) {
         address notion = IVault(vault).NOTION();
@@ -61,7 +66,6 @@ contract Router is IRouter, ERC721Holder {
         address token,
         uint256 amount,
         uint256 operatorFee,
-        address swapRouter,
         bytes calldata swapCalldata,
         uint256 deadline,
         uint8 permitV,
@@ -77,13 +81,6 @@ contract Router is IRouter, ERC721Holder {
             r: permitR,
             s: permitS
         });
-        positionId = deposit(
-            vault,
-            token,
-            amount,
-            operatorFee,
-            swapRouter,
-            swapCalldata
-        );
+        positionId = deposit(vault, token, amount, operatorFee, swapCalldata);
     }
 }

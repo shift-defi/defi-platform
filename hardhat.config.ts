@@ -37,12 +37,28 @@ const config: HardhatUserConfig = {
       url: vars.get("OP_RPC"),
       accounts
     },
+    base: {
+      chainId: 8453,
+      url: vars.get("BASE_RPC"),
+      accounts
+    },
   },
   etherscan: {
     apiKey: {
       arbitrumOne: vars.get("ARBISCAN_API_KEY"),
       optimisticEthereum: vars.get("OPTIMISTIC_ETHERSCAN_API_KEY"),
-    }
+      base: vars.get("BASESCAN_API_KEY")
+    },
+    customChains: [
+      {
+        network: "base",
+        chainId: 8453,
+        urls: {
+          apiURL: "https://api.basescan.org/api",
+          browserURL: "https://basescan.org"
+        }
+      },
+    ]
   },
   docgen: {
     pages: "files",

@@ -1,6 +1,7 @@
 import { task } from "hardhat/config";
 
 task("deployRouter", "Deploy router")
+    .addOptionalParam("swapRouter", "Swap router", "0x1111111254EEB25477B68fb85Ed929f73A960582")
     .setAction(async (taskArgs, hre) => {
         await hre.run("compile");
 

@@ -102,7 +102,7 @@ contract RemoteInstructions is LocalInstructions, ITokenWithMessageReceiver {
         address owner,
         IDefii.BridgeInstruction memory bridgeInstruction
     ) internal {
-        IERC20(bridgeInstruction.token).safeTransfer(
+        IERC20(bridgeInstruction.token).safeIncreaseAllowance(
             bridgeInstruction.bridgeAdapter,
             bridgeInstruction.amount
         );

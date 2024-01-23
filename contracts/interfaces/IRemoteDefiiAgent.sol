@@ -8,6 +8,4 @@ interface IRemoteDefiiAgent {
         address owner,
         uint256 shares
     ) external;
-
-    function withdrawLiquidity(address to, uint256 shares) external;
 }

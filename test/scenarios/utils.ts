@@ -90,7 +90,8 @@ export async function setupPlatform() {
         lpToken1,
         lpToken2,
         swapRouter,
-        operatorRegistry
+        operatorRegistry,
+        deployer
     }
 }
 

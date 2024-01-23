@@ -10,7 +10,6 @@ interface IRouter {
         address token,
         uint256 amount,
         uint256 operatorFee,
-        address oneInch,
         bytes calldata swapCalldata
     ) external returns (uint256 positionId);
 
@@ -19,7 +18,6 @@ interface IRouter {
         address token,
         uint256 amount,
         uint256 operatorFee,
-        address oneInch,
         bytes calldata swapCalldata,
         uint256 deadline,
         uint8 permitV,

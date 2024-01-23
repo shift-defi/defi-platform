@@ -22,12 +22,12 @@ contract DefiiLogic is Logic {
         return lending.lpToken().balanceOf(account);
     }
 
-    function enter() external override {
+    function enter() external payable override {
         lending.depositToken().approve(address(lending), type(uint256).max);
         lending.deposit(lending.depositToken().balanceOf(address(this)));
     }
 
-    function claimRewards(address recipient) external override {
+    function claimRewards(address recipient) external payable override {
         lending.claimRewards();
         lending.incentiveToken().transfer(
             recipient,
@@ -35,14 +35,14 @@ contract DefiiLogic is Logic {
         );
     }
 
-    function exit(uint256 liquidity) external override {
+    function exit(uint256 liquidity) external payable override {
         lending.withdraw(liquidity);
     }
 
     function withdrawLiquidity(
         address recipient,
         uint256 amount
-    ) external override {
+    ) external payable override {
         lending.lpToken().transfer(recipient, amount);
     }
 }

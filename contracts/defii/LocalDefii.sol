@@ -117,7 +117,7 @@ abstract contract LocalDefii is
         for (uint256 i = 0; i < tokens.length; i++) {
             uint256 tokenBalance = IERC20(tokens[i]).balanceOf(address(this));
             if (tokenBalance > 0) {
-                IERC20(tokens[i]).transfer(msg.sender, tokenBalance);
+                IERC20(tokens[i]).safeTransfer(msg.sender, tokenBalance);
             }
         }
     }

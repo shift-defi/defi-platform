@@ -4,22 +4,22 @@ pragma solidity ^0.8.20;
 abstract contract Logic {
     error NotImplemented();
 
-    function claimRewards(address recipient) external virtual {
+    function claimRewards(address recipient) external payable virtual {
         revert NotImplemented();
     }
 
-    function emergencyExit() external virtual {
+    function emergencyExit() external payable virtual {
         revert NotImplemented();
     }
 
-    function enter() external virtual;
+    function enter() external payable virtual;
 
-    function exit(uint256 liquidity) external virtual;
+    function exit(uint256 liquidity) external payable virtual;
 
     function withdrawLiquidity(
         address recipient,
         uint256 amount
-    ) external virtual;
+    ) external payable virtual;
 
     function accountLiquidity(
         address account

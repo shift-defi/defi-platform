@@ -99,7 +99,10 @@ abstract contract Execution is SharedLiquidity, Ownable {
         }
     }
 
-    function _withdrawLiquidity(address recipient, uint256 amount) internal {
+    function _withdrawLiquidity(
+        address recipient,
+        uint256 amount
+    ) internal alive {
         _logic(abi.encodeCall(Logic.withdrawLiquidity, (recipient, amount)));
     }
 

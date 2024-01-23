@@ -132,7 +132,9 @@ abstract contract RemoteDefiiPrincipal is
 
         _startRemoteCall(
             abi.encodeWithSelector(
-                IRemoteDefiiAgent.withdrawLiquidity.selector,
+                IRemoteDefiiAgent.increaseShareBalance.selector,
+                address(0),
+                0,
                 recipient,
                 shares
             ),

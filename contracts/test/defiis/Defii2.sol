@@ -150,7 +150,7 @@ contract DefiiLogic is Logic {
         return amm.lpToken().balanceOf(account);
     }
 
-    function enter() external override {
+    function enter() external payable override {
         amm.token0().approve(address(amm), type(uint256).max);
         amm.token1().approve(address(amm), type(uint256).max);
 
@@ -160,7 +160,7 @@ contract DefiiLogic is Logic {
         );
     }
 
-    function claimRewards(address recipient) external override {
+    function claimRewards(address recipient) external payable override {
         amm.claimRewards();
         amm.incentiveToken().transfer(
             recipient,
@@ -168,14 +168,14 @@ contract DefiiLogic is Logic {
         );
     }
 
-    function exit(uint256 liquidity) external override {
+    function exit(uint256 liquidity) external payable override {
         amm.withdraw(liquidity);
     }
 
     function withdrawLiquidity(
         address to,
         uint256 liquidity
-    ) external override {
+    ) external payable override {
         amm.lpToken().transfer(to, liquidity);
     }
 }
