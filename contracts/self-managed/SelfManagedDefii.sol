@@ -113,7 +113,13 @@ contract SelfManagedDefii is LocalInstructions, Ownable {
 
     function emergencyExit() external onlyOwnerOrOperator {
         LOGIC.functionDelegateCall(
-            abi.encodeCall(Logic.exit, (totalLiquidity()))
+            abi.encodeCall(Logic.emergencyExit, ())
+        );
+    }
+
+    function withdrawLiquidity(address account, uint256 amount) external onlyOwner {
+        LOGIC.functionDelegateCall(
+            abi.encodeCall(Logic.withdrawLiquidity, (account, amount))
         );
     }
 
