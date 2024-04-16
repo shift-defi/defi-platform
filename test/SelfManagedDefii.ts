@@ -105,6 +105,16 @@ describe("SelfManagedDefii", function () {
             )
         })
 
+        specify("Exit Building Block", async function() {
+            const { user, operator, justAccount, defii, enterInstructions } = await loadFixture(setupDefii)
+
+            await defii.connect(user).enter(enterInstructions)
+
+            await expect(defii.connect(justAccount).exitBuildingBlock(0)).to.be.reverted
+            await expect(defii.connect(operator).exitBuildingBlock(0)).to.be.not.reverted
+            await expect(defii.connect(user).exitBuildingBlock(0)).to.be.not.reverted
+        })
+
         specify("Run tx", async function () {
             const { user, justAccount, defii, notion } = await loadFixture(setupDefii)
 

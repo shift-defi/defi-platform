@@ -45,6 +45,15 @@ contract DefiiLogic is Logic {
     ) external payable override {
         lending.lpToken().transfer(recipient, amount);
     }
+
+    function exitBuildingBlock(
+        uint256 buildingBlockId
+    ) external payable override {
+        uint256 liquidity = lending.lpToken().balanceOf(address(this));
+        if (buildingBlockId == 0) {
+            lending.withdraw(liquidity);
+        }
+    }
 }
 
 /// @notice Stub local defii with 1 token

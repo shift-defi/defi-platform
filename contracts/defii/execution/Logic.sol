@@ -12,14 +12,20 @@ abstract contract Logic {
         revert NotImplemented();
     }
 
-    function enter() external payable virtual;
-
-    function exit(uint256 liquidity) external payable virtual;
+    function exitBuildingBlock(uint256 buildingBlockId) external payable virtual {
+        revert NotImplemented();
+    }
 
     function withdrawLiquidity(
         address recipient,
         uint256 amount
-    ) external payable virtual;
+    ) external payable virtual {
+        revert NotImplemented();
+    }
+
+    function enter() external payable virtual;
+
+    function exit(uint256 liquidity) external payable virtual;
 
     function accountLiquidity(
         address account
