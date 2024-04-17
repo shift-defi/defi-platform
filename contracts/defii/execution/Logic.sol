@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 abstract contract Logic {
     error NotImplemented();
+    error WrongBuildingBlockId(uint256);
 
     function claimRewards(address recipient) external payable virtual {
         revert NotImplemented();

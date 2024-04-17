@@ -82,10 +82,11 @@ contract SelfManagedDefii is LocalInstructions, Ownable {
     }
 
     function exit(
-        uint256 liquidity,
+        uint256 percentage,
         IDefii.MinTokensDeltaInstruction memory minTokensDelta
     ) external onlyOwner {
-        if (liquidity == 0) liquidity = totalLiquidity();
+        if (percentage == 0) percentage = 100;
+        uint256 liquidity = (percentage * totalLiquidity()) / 100;
 
         uint256 n = minTokensDelta.tokens.length;
         for (uint256 i = 0; i < n; i++) {
