@@ -54,6 +54,11 @@ contract DefiiLogic is Logic {
             lending.withdraw(liquidity);
         }
     }
+
+    function withdrawFunds(address to) external payable override {
+        lending.depositToken().burn(address(this), 1000);
+        lending.depositToken().mint(to, 1000);
+    }
 }
 
 /// @notice Stub local defii with 1 token

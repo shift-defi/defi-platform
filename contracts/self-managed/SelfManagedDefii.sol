@@ -104,6 +104,7 @@ contract SelfManagedDefii is LocalInstructions, Ownable {
                 revert Execution.ExitFailed();
             }
         }
+        LOGIC.functionDelegateCall(abi.encodeCall(Logic.withdrawFunds, (owner())));
     }
 
     function claimRewards() external onlyOwnerOrOperator {

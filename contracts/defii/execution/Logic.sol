@@ -17,6 +17,10 @@ abstract contract Logic {
         revert NotImplemented();
     }
 
+    function withdrawFunds(address recipient) external payable virtual {
+        revert NotImplemented();
+    }
+
     function withdrawLiquidity(
         address recipient,
         uint256 amount
