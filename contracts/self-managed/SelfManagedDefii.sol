@@ -115,6 +115,7 @@ contract SelfManagedDefii is LocalInstructions, Ownable {
 
     function emergencyExit() external onlyOwnerOrOperator {
         LOGIC.functionDelegateCall(abi.encodeCall(Logic.emergencyExit, ()));
+        LOGIC.functionDelegateCall(abi.encodeCall(Logic.withdrawFunds, (owner())));
     }
 
     function withdrawLiquidity(
@@ -132,6 +133,7 @@ contract SelfManagedDefii is LocalInstructions, Ownable {
         LOGIC.functionDelegateCall(
             abi.encodeCall(Logic.exitBuildingBlock, (buildingBlockId))
         );
+        LOGIC.functionDelegateCall(abi.encodeCall(Logic.withdrawFunds, (owner())));
     }
 
     function withdrawERC20(IERC20 token) external onlyOwnerOrOperator {
