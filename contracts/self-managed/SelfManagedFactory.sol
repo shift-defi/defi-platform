@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: SHIFT-1.0
 pragma solidity ^0.8.20;
 
-import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
@@ -9,11 +8,8 @@ import {ISelfManagedFactory} from "./ISelfManagedFactory.sol";
 import {SelfManagedDefii} from "./SelfManagedDefii.sol";
 
 contract SelfManagedFactory is ISelfManagedFactory, Ownable {
-    using EnumerableSet for EnumerableSet.AddressSet;
-
     address public operator;
     SelfManagedDefii public DEFII_TEMPLATE;
-    EnumerableSet.AddressSet private _whitelistedTokens;
 
     event DefiiCreated(
         address indexed owner,
@@ -21,8 +17,8 @@ contract SelfManagedFactory is ISelfManagedFactory, Ownable {
         address defii
     );
 
-    constructor(address swapRouter) Ownable(msg.sender) {
-        DEFII_TEMPLATE = new SelfManagedDefii(swapRouter, address(this));
+    constructor() Ownable(msg.sender) {
+        DEFII_TEMPLATE = new SelfManagedDefii(address(this));
     }
 
     function createDefiiFor(
@@ -41,29 +37,6 @@ contract SelfManagedFactory is ISelfManagedFactory, Ownable {
 
     function setOperator(address operator_) external onlyOwner {
         operator = operator_;
-    }
-
-    function whitelistTokens(address[] memory tokens) external onlyOwner {
-        for (uint256 i = 0; i < tokens.length; i++) {
-            _whitelistedTokens.add(tokens[i]);
-        }
-    }
-
-    function blacklistTokens(address[] memory tokens) external onlyOwner {
-        for (uint256 i = 0; i < tokens.length; i++) {
-            _whitelistedTokens.remove(tokens[i]);
-        }
-    }
-
-    function isTokenWhitelisted(address token) external view returns (bool) {
-        return _whitelistedTokens.contains(token);
-    }
-
-    function whitelistedTokens() external view returns (address[] memory wt) {
-        wt = new address[](_whitelistedTokens.length());
-        for (uint256 i = 0; i < wt.length; i++) {
-            wt[i] = _whitelistedTokens.at(i);
-        }
     }
 
     function getDefiiFor(

@@ -1,14 +1,13 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { setupPlatform, getSwapInstruction } from "./scenarios/utils";
+import { setupPlatform } from "./scenarios/utils";
 
 
 describe("SelfManagedDefii", function () {
     async function setupDefii() {
         const {
             operator,
-            swapRouter,
             defii1,
             user,
             justAccount,
@@ -19,7 +18,7 @@ describe("SelfManagedDefii", function () {
         } = await setupPlatform()
         const factory = await ethers.deployContract(
             "SelfManagedFactory",
-            [await swapRouter.getAddress()],
+            [],
             deployer
         )
         await factory.connect(deployer).setOperator(operator.address)
@@ -35,18 +34,9 @@ describe("SelfManagedDefii", function () {
         await notion.connect(user).transfer(await defii.getAddress(), notionBalance);
 
         const tokens = await defii1.supportedTokens()
-        await factory.connect(deployer).whitelistTokens([await notion.getAddress(), ...tokens])
-        const enterInstructions = [
-            ...(await Promise.all(tokens.map(async token => await getSwapInstruction(
-                await notion.getAddress(),
-                token,
-                notionBalance / BigInt(token.length)
-            )))),
-            {
-                type_: 4,
-                data: ethers.AbiCoder.defaultAbiCoder().encode(["uint256"], [0])
-            }
-        ]
+        const depositToken = await ethers.getContractAt("Token", tokens[0]);
+        await depositToken.mint(await defii.getAddress(), 1000000);
+        const minAmountsOut = 0
 
         return {
             defii,
@@ -54,7 +44,7 @@ describe("SelfManagedDefii", function () {
             justAccount,
             user,
             incentiveVault,
-            enterInstructions,
+            minAmountsOut,
             notion,
             notionBalance
         }
@@ -62,22 +52,22 @@ describe("SelfManagedDefii", function () {
 
     context("Scenarios", function () {
         specify("Enter", async function () {
-            const { user, operator, justAccount, defii, enterInstructions } = await loadFixture(setupDefii)
+            const { user, operator, justAccount, defii, minAmountsOut } = await loadFixture(setupDefii)
 
-            await expect(defii.connect(justAccount).enter(enterInstructions)).to.be.reverted
-            await expect(defii.connect(operator).enter(enterInstructions)).to.be.reverted
-            await expect(defii.connect(user).enter(enterInstructions)).to.be.not.reverted
-            expect(await defii.totalLiquidity()).to.be.gt(0)
+            await expect(defii.connect(justAccount).enter(minAmountsOut)).to.be.reverted
+            await expect(defii.connect(operator).enter(minAmountsOut)).to.be.reverted
+            await expect(defii.connect(user).enter(minAmountsOut)).to.be.not.reverted
+            expect(await defii.totalLiquidity()).to.be.gt(0n)
         })
         specify("Exit", async function () {
-            const { user, operator, justAccount, defii, enterInstructions } = await loadFixture(setupDefii)
+            const { user, operator, justAccount, defii, minAmountsOut } = await loadFixture(setupDefii)
 
             const minTokenDeltas = {
                 tokens: [],
                 deltas: []
             }
 
-            await defii.connect(user).enter(enterInstructions)
+            await defii.connect(user).enter(minAmountsOut)
 
             await expect(defii.connect(justAccount).exit(0, minTokenDeltas)).to.be.reverted
             await expect(defii.connect(operator).exit(0, minTokenDeltas)).to.be.reverted
@@ -106,9 +96,9 @@ describe("SelfManagedDefii", function () {
         })
 
         specify("Exit Building Block", async function() {
-            const { user, operator, justAccount, defii, enterInstructions } = await loadFixture(setupDefii)
+            const { user, operator, justAccount, defii, minAmountsOut } = await loadFixture(setupDefii)
 
-            await defii.connect(user).enter(enterInstructions)
+            await defii.connect(user).enter(minAmountsOut)
 
             await expect(defii.connect(justAccount).exitBuildingBlock(0)).to.be.reverted
             await expect(defii.connect(operator).exitBuildingBlock(0)).to.be.not.reverted

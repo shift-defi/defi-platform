@@ -7,13 +7,14 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 import {Logic} from "../defii/execution/Logic.sol";
+import {SelfManagedLogic} from "./SelfManagedLogic.sol";
 import {Execution} from "../defii/execution/Execution.sol";
 import {SupportedTokens} from "../defii/supported-tokens/SupportedTokens.sol";
 import {LocalInstructions} from "../defii/instructions/LocalInstructions.sol";
 import {IDefii} from "../interfaces/IDefii.sol";
 import {ISelfManagedFactory} from "./ISelfManagedFactory.sol";
 
-contract SelfManagedDefii is LocalInstructions, Ownable {
+contract SelfManagedDefii is Ownable {
     using Address for address;
     using Address for address payable;
     using SafeERC20 for IERC20;
@@ -30,10 +31,7 @@ contract SelfManagedDefii is LocalInstructions, Ownable {
         _;
     }
 
-    constructor(
-        address swapRouter,
-        address factory
-    ) LocalInstructions(swapRouter) Ownable(factory) {
+    constructor(address factory) Ownable(factory) {
         FACTORY = ISelfManagedFactory(factory);
     }
 
@@ -51,28 +49,27 @@ contract SelfManagedDefii is LocalInstructions, Ownable {
         _transferOwnership(owner);
     }
 
-    function enter(
-        IDefii.Instruction[] calldata instructions
-    ) external onlyOwner {
-        uint256 n = instructions.length;
-        for (uint256 i = 0; i < n - 1; i++) {
-            IDefii.SwapInstruction memory instruction = _decodeSwap(
-                instructions[i]
-            );
-            if (!FACTORY.isTokenWhitelisted(instruction.tokenIn))
-                revert SupportedTokens.TokenNotSupported(instruction.tokenIn);
-            if (!FACTORY.isTokenWhitelisted(instruction.tokenOut))
-                revert SupportedTokens.TokenNotSupported(instruction.tokenOut);
-            _doSwap(instruction);
-        }
-
-        uint256 minLiquidityDelta = _decodeMinLiquidityDelta(
-            instructions[n - 1]
-        );
+    function enter(uint256 minLiquidityDelta) external onlyOwner {
         uint256 liquidityBefore = totalLiquidity();
         LOGIC.functionDelegateCall(abi.encodeCall(Logic.enter, ()));
         uint256 liquidityAfter = totalLiquidity();
+        if (
+            liquidityBefore > liquidityAfter ||
+            (liquidityAfter - liquidityBefore) < minLiquidityDelta
+        ) {
+            revert Execution.EnterFailed();
+        }
+    }
 
+    function enterWithParameters(
+        uint256 minLiquidityDelta,
+        bytes calldata params
+    ) external onlyOwner {
+        uint256 liquidityBefore = totalLiquidity();
+        LOGIC.functionDelegateCall(
+            abi.encodeCall(SelfManagedLogic.enterWithParams, (params))
+        );
+        uint256 liquidityAfter = totalLiquidity();
         if (
             liquidityBefore > liquidityAfter ||
             (liquidityAfter - liquidityBefore) < minLiquidityDelta
@@ -104,10 +101,13 @@ contract SelfManagedDefii is LocalInstructions, Ownable {
                 revert Execution.ExitFailed();
             }
         }
-        LOGIC.functionDelegateCall(abi.encodeCall(Logic.withdrawFunds, (owner())));
+        for (uint256 i = 0; i < n; i++) {
+            withdrawERC20(IERC20(minTokensDelta.tokens[i]));
+        }
+        claimRewards();
     }
 
-    function claimRewards() external onlyOwnerOrOperator {
+    function claimRewards() public onlyOwnerOrOperator {
         LOGIC.functionDelegateCall(
             abi.encodeCall(Logic.claimRewards, (incentiveVault))
         );
@@ -115,7 +115,12 @@ contract SelfManagedDefii is LocalInstructions, Ownable {
 
     function emergencyExit() external onlyOwnerOrOperator {
         LOGIC.functionDelegateCall(abi.encodeCall(Logic.emergencyExit, ()));
-        LOGIC.functionDelegateCall(abi.encodeCall(Logic.withdrawFunds, (owner())));
+    }
+
+    function emergencyExitPrivate() external onlyOwnerOrOperator {
+        LOGIC.functionDelegateCall(
+            abi.encodeCall(SelfManagedLogic.emergencyExitPrivate, ())
+        );
     }
 
     function withdrawLiquidity(
@@ -131,12 +136,14 @@ contract SelfManagedDefii is LocalInstructions, Ownable {
         uint256 buildingBlockId
     ) external onlyOwnerOrOperator {
         LOGIC.functionDelegateCall(
-            abi.encodeCall(Logic.exitBuildingBlock, (buildingBlockId))
+            abi.encodeCall(
+                SelfManagedLogic.exitBuildingBlock,
+                (buildingBlockId)
+            )
         );
-        LOGIC.functionDelegateCall(abi.encodeCall(Logic.withdrawFunds, (owner())));
     }
 
-    function withdrawERC20(IERC20 token) external onlyOwnerOrOperator {
+    function withdrawERC20(IERC20 token) public onlyOwnerOrOperator {
         uint256 tokenAmount = token.balanceOf(address(this));
         if (tokenAmount > 0) {
             token.safeTransfer(owner(), tokenAmount);
@@ -245,6 +252,18 @@ contract SelfManagedDefii is LocalInstructions, Ownable {
     }
 
     function totalLiquidity() public view returns (uint256) {
-        return Logic(LOGIC).accountLiquidity(address(this));
+        return SelfManagedLogic(LOGIC).accountLiquidity(address(this));
+    }
+
+    function getMinLiquidityDelta(
+        uint256 slippage
+    ) external view returns (uint256) {
+        return SelfManagedLogic(LOGIC).getMinLiquidityDelta(address(this), slippage);
+    }
+
+    function getMinTokensDeltas(
+        uint256 slippage
+    ) external view returns (IDefii.MinTokensDeltaInstruction memory) {
+        return SelfManagedLogic(LOGIC).getMinTokensDeltas(address(this), slippage);
     }
 }

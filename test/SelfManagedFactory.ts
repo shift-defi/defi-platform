@@ -10,7 +10,6 @@ describe("SelfManagedFactory", function () {
             const { user, swapRouter, defii1, incentiveVault } = await loadFixture(setupPlatform)
             const factory = await ethers.deployContract(
                 "SelfManagedFactory",
-                [await swapRouter.getAddress()]
             )
             const logic = await defii1.LOGIC()
 
@@ -29,10 +28,9 @@ describe("SelfManagedFactory", function () {
         })
 
         it("Should revert, if defii already exists", async function () {
-            const { user, swapRouter, defii1, incentiveVault } = await loadFixture(setupPlatform)
+            const { user, defii1, incentiveVault } = await loadFixture(setupPlatform)
             const factory = await ethers.deployContract(
                 "SelfManagedFactory",
-                [await swapRouter.getAddress()]
             )
             const logic = await defii1.LOGIC()
 
@@ -42,36 +40,10 @@ describe("SelfManagedFactory", function () {
     })
 
     context("Config", function () {
-        it("Should whitelist tokens", async function () {
-            const [user, deployer] = await ethers.getSigners()
-            const factory = await ethers.deployContract(
-                "SelfManagedFactory",
-                [ethers.ZeroAddress],
-                deployer
-            )
-
-            // initial state
-            expect(await factory.whitelistedTokens()).to.be.deep.eq([])
-            expect(await factory.isTokenWhitelisted(ethers.ZeroAddress)).to.be.false
-
-            // whitelist 0x000...000
-            await expect(factory.connect(user).whitelistTokens([ethers.ZeroAddress])).to.be.reverted
-            await expect(factory.connect(deployer).whitelistTokens([ethers.ZeroAddress])).to.be.not.reverted
-            expect(await factory.whitelistedTokens()).to.be.deep.eq([ethers.ZeroAddress])
-            expect(await factory.isTokenWhitelisted(ethers.ZeroAddress)).to.be.true
-
-            // blacklist 0x000...000
-            await expect(factory.connect(user).blacklistTokens([ethers.ZeroAddress])).to.be.reverted
-            await expect(factory.connect(deployer).blacklistTokens([ethers.ZeroAddress])).to.be.not.reverted
-            expect(await factory.whitelistedTokens()).to.be.deep.eq([])
-            expect(await factory.isTokenWhitelisted(ethers.ZeroAddress)).to.be.false
-        })
-
         it("Should change operator", async function () {
             const [user, deployer, operator] = await ethers.getSigners()
             const factory = await ethers.deployContract(
                 "SelfManagedFactory",
-                [ethers.ZeroAddress],
                 deployer
             )
 

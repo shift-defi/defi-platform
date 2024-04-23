@@ -8,6 +8,7 @@ import {Logic} from "../../defii/execution/Logic.sol";
 import {Supported1Token} from "../../defii/supported-tokens/Supported1Token.sol";
 
 import {Lending} from "../protocols/Lending.sol";
+import "hardhat/console.sol";
 
 contract DefiiLogic is Logic {
     Lending public immutable lending;
@@ -46,18 +47,8 @@ contract DefiiLogic is Logic {
         lending.lpToken().transfer(recipient, amount);
     }
 
-    function exitBuildingBlock(
-        uint256 buildingBlockId
-    ) external payable override {
-        uint256 liquidity = lending.lpToken().balanceOf(address(this));
-        if (buildingBlockId == 0) {
-            lending.withdraw(liquidity);
-        }
-    }
+    function exitBuildingBlock(uint256 buildingBlockId) external payable {
 
-    function withdrawFunds(address to) external payable override {
-        lending.depositToken().burn(address(this), 1000);
-        lending.depositToken().mint(to, 1000);
     }
 }
 
