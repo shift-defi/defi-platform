@@ -21,8 +21,8 @@ contract SelfManagedDefii is Ownable {
     using SafeERC20 for IERC20;
     using SafeCast for int256;
 
-    uint256 public constant SLIPPAGE_BPS = 100;
-    uint256 public constant PERCENTAGE_BPS = 10000;
+    uint256 public constant PERCENTAGE_BPS = 100;
+    uint256 public constant SLIPPAGE_BPS = 10000;
 
     // immutable like
     ISelfManagedFactory public immutable FACTORY;
