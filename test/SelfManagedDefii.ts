@@ -36,6 +36,7 @@ describe("SelfManagedDefii", function () {
         const tokens = await defii1.supportedTokens()
         const depositToken = await ethers.getContractAt("Token", tokens[0]);
         await depositToken.mint(await defii.getAddress(), 1000000);
+
         const minAmountsOut = 0
 
         return {

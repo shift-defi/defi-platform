@@ -15,6 +15,7 @@ import {LocalInstructions} from "../defii/instructions/LocalInstructions.sol";
 import {IDefii} from "../interfaces/IDefii.sol";
 import {ISelfManagedFactory} from "./ISelfManagedFactory.sol";
 
+
 contract SelfManagedDefii is Ownable {
     using Address for address;
     using Address for address payable;
@@ -295,6 +296,8 @@ contract SelfManagedDefii is Ownable {
     ) external returns (IDefii.MinTokensDeltaInstruction memory) {
         int256[] memory balanceChanged = this.simulateExit(percentage, tokens);
         IDefii.MinTokensDeltaInstruction memory instruction;
+        instruction.tokens = new address[](tokens.length);
+        instruction.deltas = new uint256[](tokens.length);
         for (uint256 i = 0; i < tokens.length; i++) {
             instruction.tokens[i] = tokens[i];
             instruction.deltas[i] =
