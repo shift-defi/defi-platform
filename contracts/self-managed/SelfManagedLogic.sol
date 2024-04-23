@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Logic} from "../defii/execution/Logic.sol";
-import "../interfaces/IDefii.sol";
+import {IDefii} from "../interfaces/IDefii.sol";
 
 abstract contract SelfManagedLogic is Logic {
     error WrongBuildingBlockId(uint256);
