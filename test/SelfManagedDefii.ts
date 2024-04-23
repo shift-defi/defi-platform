@@ -53,7 +53,6 @@ describe("SelfManagedDefii", function () {
     context("Scenarios", function () {
         specify("Enter", async function () {
             const { user, operator, justAccount, defii, minAmountsOut } = await loadFixture(setupDefii)
-
             await expect(defii.connect(justAccount).enter(minAmountsOut)).to.be.reverted
             await expect(defii.connect(operator).enter(minAmountsOut)).to.be.reverted
             await expect(defii.connect(user).enter(minAmountsOut)).to.be.not.reverted

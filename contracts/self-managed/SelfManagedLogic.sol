@@ -18,12 +18,4 @@ abstract contract SelfManagedLogic is Logic {
     function exitBuildingBlock(
         uint256 buildingBlockId
     ) external payable virtual;
-
-    function getMinLiquidityDelta(
-        address account, uint256 slippage
-    ) external view virtual returns (uint256);
-
-    function getMinTokensDeltas(
-        address account, uint256 slippage
-    ) external view virtual returns (IDefii.MinTokensDeltaInstruction memory);
 }

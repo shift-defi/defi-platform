@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20Metadata, IERC20} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 import {Logic} from "../defii/execution/Logic.sol";
@@ -18,6 +19,10 @@ contract SelfManagedDefii is Ownable {
     using Address for address;
     using Address for address payable;
     using SafeERC20 for IERC20;
+    using SafeCast for int256;
+
+    uint256 public constant SLIPPAGE_BPS = 100;
+    uint256 public constant PERCENTAGE_BPS = 10000;
 
     // immutable like
     ISelfManagedFactory public immutable FACTORY;
@@ -83,7 +88,7 @@ contract SelfManagedDefii is Ownable {
         IDefii.MinTokensDeltaInstruction memory minTokensDelta
     ) external onlyOwner {
         if (percentage == 0) percentage = 100;
-        uint256 liquidity = (percentage * totalLiquidity()) / 100;
+        uint256 liquidity = (percentage * totalLiquidity()) / PERCENTAGE_BPS;
 
         uint256 n = minTokensDelta.tokens.length;
         for (uint256 i = 0; i < n; i++) {
@@ -172,15 +177,35 @@ contract SelfManagedDefii is Ownable {
         }
     }
 
+    function simulateEnter() external returns (uint256 liquidityChanged) {
+        try this.simulateEnterAndRevert() {} catch (bytes memory result) {
+            liquidityChanged = abi.decode(result, (uint256));
+        }
+    }
+
+    function simulateEnterAndRevert() external {
+        uint256 liquidityBefore = totalLiquidity();
+        LOGIC.functionDelegateCall(abi.encodeCall(Logic.enter, ()));
+        uint256 liquidityAfter = totalLiquidity();
+        uint256 delta = liquidityAfter - liquidityBefore;
+        bytes memory returnData = abi.encode(delta);
+        uint256 returnDataLength = returnData.length;
+        assembly {
+            revert(add(returnData, 0x20), returnDataLength)
+        }
+    }
+
     function simulateExit(
+        uint256 percentage,
         address[] calldata tokens
     ) external returns (int256[] memory balanceChanges) {
-        try this.simulateExitAndRevert(tokens) {} catch (bytes memory result) {
+        require(percentage >= 0 && percentage <= 100, "Wrong percentage");
+        try this.simulateExitAndRevert(percentage, tokens) {} catch (bytes memory result) {
             balanceChanges = abi.decode(result, (int256[]));
         }
     }
 
-    function simulateExitAndRevert(address[] calldata tokens) external {
+    function simulateExitAndRevert(uint256 percentage, address[] calldata tokens) external {
         int256[] memory balanceChanges = new int256[](tokens.length);
         for (uint256 i = 0; i < tokens.length; i++) {
             balanceChanges[i] = int256(
@@ -188,8 +213,11 @@ contract SelfManagedDefii is Ownable {
             );
         }
 
+        if (percentage == 0) percentage = 100;
+        uint256 liquidity = (percentage * totalLiquidity()) / PERCENTAGE_BPS;
+
         LOGIC.functionDelegateCall(
-            abi.encodeCall(Logic.exit, (totalLiquidity()))
+            abi.encodeCall(Logic.exit, (liquidity))
         );
 
         for (uint256 i = 0; i < tokens.length; i++) {
@@ -255,15 +283,23 @@ contract SelfManagedDefii is Ownable {
         return SelfManagedLogic(LOGIC).accountLiquidity(address(this));
     }
 
-    function getMinLiquidityDelta(
-        uint256 slippage
-    ) external view returns (uint256) {
-        return SelfManagedLogic(LOGIC).getMinLiquidityDelta(address(this), slippage);
+    function getMinLiquidityDelta(uint256 slippage) external returns (uint256) {
+        uint256 minLiquidityDelta = this.simulateEnter();
+        return (minLiquidityDelta * slippage) / SLIPPAGE_BPS;
     }
 
     function getMinTokensDeltas(
-        uint256 slippage
-    ) external view returns (IDefii.MinTokensDeltaInstruction memory) {
-        return SelfManagedLogic(LOGIC).getMinTokensDeltas(address(this), slippage);
+        uint256 percentage,
+        uint256 slippage,
+        address[] memory tokens
+    ) external returns (IDefii.MinTokensDeltaInstruction memory) {
+        int256[] memory balanceChanged = this.simulateExit(percentage, tokens);
+        IDefii.MinTokensDeltaInstruction memory instruction;
+        for (uint256 i = 0; i < tokens.length; i++) {
+            instruction.tokens[i] = tokens[i];
+            instruction.deltas[i] =
+                (balanceChanged[i].toUint256() * slippage) / SLIPPAGE_BPS;
+        }
+        return instruction;
     }
 }
