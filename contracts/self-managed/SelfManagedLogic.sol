@@ -11,10 +11,13 @@ abstract contract SelfManagedLogic is Logic {
         revert NotImplemented();
     }
 
+    function emergencyExitPrivate() external payable virtual {
+        revert NotImplemented();
+    }
+
     function exitBuildingBlock(
         uint256 buildingBlockId
     ) external payable virtual;
-    function emergencyExitPrivate() external payable virtual;
 
     function getMinLiquidityDelta(
         address account, uint256 slippage
